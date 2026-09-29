@@ -1,0 +1,183 @@
+﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  Tracker Tool — classic Outlook (Windows desktop) Office Add-in
+  Mail Read surface: ribbon "Add to Tracker" → task pane
+
+  NOT a COM/VSTO add-in. NOT new-Outlook-only.
+  Host the add-in files over HTTPS, then update all ~Remote~Url values below
+  to match your host (default: GitHub Pages host).
+-->
+<OfficeApp
+  xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+  xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0"
+  xsi:type="MailApp">
+
+  <Id>a1b2c3d4-e5f6-7890-abcd-ef1234567890</Id>
+  <Version>0.1.0.0</Version>
+  <ProviderName>SEO &amp; Web</ProviderName>
+  <DefaultLocale>en-GB</DefaultLocale>
+  <DisplayName DefaultValue="Tracker Tool" />
+  <Description DefaultValue="Add the current email to Tracker as a task." />
+  <IconUrl DefaultValue="https://digirich.github.io/outlook-tracker-addin/assets/icon-32.png" />
+  <HighResolutionIconUrl DefaultValue="https://digirich.github.io/outlook-tracker-addin/assets/icon-64.png" />
+  <SupportUrl DefaultValue="https://tracker.seoandweb.co.uk" />
+  <AppDomains>
+    <AppDomain>https://digirich.github.io/outlook-tracker-addin</AppDomain>
+    <AppDomain>https://tracker.seoandweb.co.uk</AppDomain>
+    <AppDomain>https://zsabmwwtflsonkjnufxc.supabase.co</AppDomain>
+  </AppDomains>
+
+  <Hosts>
+    <Host Name="Mailbox" />
+  </Hosts>
+
+  <!-- Classic / Form-based requirements: read message item -->
+  <Requirements>
+    <Sets>
+      <Set Name="Mailbox" MinVersion="1.8" />
+    </Sets>
+  </Requirements>
+
+  <FormSettings>
+    <Form xsi:type="ItemRead">
+      <DesktopSettings>
+        <SourceLocation DefaultValue="https://digirich.github.io/outlook-tracker-addin/src/taskpane/taskpane.html" />
+        <RequestedHeight>450</RequestedHeight>
+      </DesktopSettings>
+    </Form>
+  </FormSettings>
+
+  <Permissions>ReadItem</Permissions>
+
+  <!-- Activate on read messages (not composition-only) -->
+  <Rule xsi:type="RuleCollection" Mode="Or">
+    <Rule xsi:type="ItemIs" ItemType="Message" FormType="Read" />
+  </Rule>
+
+  <DisableEntityHighlighting>true</DisableEntityHighlighting>
+
+  <!-- Modern ribbon (classic Outlook desktop supports VersionOverrides) -->
+  <VersionOverrides
+    xmlns="http://schemas.microsoft.com/office/mailappversionoverrides"
+    xsi:type="VersionOverridesV1_0">
+
+    <Requirements>
+      <bt:Sets DefaultMinVersion="1.8">
+        <bt:Set Name="Mailbox" />
+      </bt:Sets>
+    </Requirements>
+
+    <Hosts>
+      <Host xsi:type="MailHost">
+        <DesktopFormFactor>
+          <FunctionFile resid="Commands.Url" />
+
+          <!-- Message Read: ribbon group with Add to Tracker -->
+          <ExtensionPoint xsi:type="MessageReadCommandSurface">
+            <OfficeTab id="TabDefault">
+              <Group id="Tracker.Group">
+                <Label resid="GroupLabel" />
+                <Control xsi:type="Button" id="Tracker.AddButton">
+                  <Label resid="TaskpaneButton.Label" />
+                  <Supertip>
+                    <Title resid="TaskpaneButton.Label" />
+                    <Description resid="TaskpaneButton.Tooltip" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16" />
+                    <bt:Image size="32" resid="Icon.32" />
+                    <bt:Image size="80" resid="Icon.80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <SourceLocation resid="Taskpane.Url" />
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+
+    <Resources>
+      <bt:Images>
+        <bt:Image id="Icon.16" DefaultValue="https://digirich.github.io/outlook-tracker-addin/assets/icon-16.png" />
+        <bt:Image id="Icon.32" DefaultValue="https://digirich.github.io/outlook-tracker-addin/assets/icon-32.png" />
+        <bt:Image id="Icon.64" DefaultValue="https://digirich.github.io/outlook-tracker-addin/assets/icon-64.png" />
+        <bt:Image id="Icon.80" DefaultValue="https://digirich.github.io/outlook-tracker-addin/assets/icon-80.png" />
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="Commands.Url" DefaultValue="https://digirich.github.io/outlook-tracker-addin/src/commands/commands.html" />
+        <bt:Url id="Taskpane.Url" DefaultValue="https://digirich.github.io/outlook-tracker-addin/src/taskpane/taskpane.html" />
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="GroupLabel" DefaultValue="Tracker" />
+        <bt:String id="TaskpaneButton.Label" DefaultValue="Add to Tracker" />
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open Tracker Tool and create a task from this email." />
+      </bt:LongStrings>
+    </Resources>
+
+    <!-- V1.1 overrides (Outlook desktop) -->
+    <VersionOverrides
+      xmlns="http://schemas.microsoft.com/office/mailappversionoverrides/1.1"
+      xsi:type="VersionOverridesV1_1">
+      <Requirements>
+        <bt:Sets DefaultMinVersion="1.8">
+          <bt:Set Name="Mailbox" />
+        </bt:Sets>
+      </Requirements>
+      <Hosts>
+        <Host xsi:type="MailHost">
+          <DesktopFormFactor>
+            <FunctionFile resid="Commands.Url" />
+            <ExtensionPoint xsi:type="MessageReadCommandSurface">
+              <OfficeTab id="TabDefault">
+                <Group id="Tracker.Group">
+                  <Label resid="GroupLabel" />
+                  <Control xsi:type="Button" id="Tracker.AddButton">
+                    <Label resid="TaskpaneButton.Label" />
+                    <Supertip>
+                      <Title resid="TaskpaneButton.Label" />
+                      <Description resid="TaskpaneButton.Tooltip" />
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="Icon.16" />
+                      <bt:Image size="32" resid="Icon.32" />
+                      <bt:Image size="80" resid="Icon.80" />
+                    </Icon>
+                    <Action xsi:type="ShowTaskpane">
+                      <SourceLocation resid="Taskpane.Url" />
+                    </Action>
+                  </Control>
+                </Group>
+              </OfficeTab>
+            </ExtensionPoint>
+          </DesktopFormFactor>
+        </Host>
+      </Hosts>
+      <Resources>
+        <bt:Images>
+          <bt:Image id="Icon.16" DefaultValue="https://digirich.github.io/outlook-tracker-addin/assets/icon-16.png" />
+          <bt:Image id="Icon.32" DefaultValue="https://digirich.github.io/outlook-tracker-addin/assets/icon-32.png" />
+          <bt:Image id="Icon.64" DefaultValue="https://digirich.github.io/outlook-tracker-addin/assets/icon-64.png" />
+          <bt:Image id="Icon.80" DefaultValue="https://digirich.github.io/outlook-tracker-addin/assets/icon-80.png" />
+        </bt:Images>
+        <bt:Urls>
+          <bt:Url id="Commands.Url" DefaultValue="https://digirich.github.io/outlook-tracker-addin/src/commands/commands.html" />
+          <bt:Url id="Taskpane.Url" DefaultValue="https://digirich.github.io/outlook-tracker-addin/src/taskpane/taskpane.html" />
+        </bt:Urls>
+        <bt:ShortStrings>
+          <bt:String id="GroupLabel" DefaultValue="Tracker" />
+          <bt:String id="TaskpaneButton.Label" DefaultValue="Add to Tracker" />
+        </bt:ShortStrings>
+        <bt:LongStrings>
+          <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open Tracker Tool and create a task from this email." />
+        </bt:LongStrings>
+      </Resources>
+    </VersionOverrides>
+  </VersionOverrides>
+</OfficeApp>

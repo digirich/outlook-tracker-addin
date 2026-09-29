@@ -1,0 +1,23 @@
+{
+  "name": "outlook-tracker-addin",
+  "version": "0.1.0",
+  "description": "Classic Outlook add-in: Add to Tracker — create tasks from emails",
+  "private": true,
+  "scripts": {
+    "start": "office-addin-debugging start manifest.xml",
+    "stop": "office-addin-debugging stop manifest.xml",
+    "validate": "office-addin-manifest validate manifest.xml",
+    "serve": "npx serve -l 3000 ."
+  },
+  "devDependencies": {
+    "office-addin-debugging": "^5.0.0",
+    "office-addin-dev-certs": "^1.0.0",
+    "office-addin-manifest": "^1.0.0",
+    "serve": "^14.2.0"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "author": "SEO & Web",
+  "license": "UNLICENSED"
+}

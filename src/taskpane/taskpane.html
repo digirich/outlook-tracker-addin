@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tracker Tool</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <link rel="stylesheet" href="taskpane.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>Tracker Tool</h1>
+      <span id="userChip" class="user-chip" title=""></span>
+    </header>
+
+    <main>
+      <!-- Sign-in (shown when no stored access token) -->
+      <section id="authPanel" class="panel">
+        <h2>Sign in</h2>
+        <p class="hint">
+          Sign in with your Tracker (Supabase) account. The create-task API is
+          forthcoming — this form obtains a user JWT for future authenticated
+          calls.
+        </p>
+        <div class="field">
+          <label for="authEmail">Email</label>
+          <input id="authEmail" type="email" autocomplete="username" />
+        </div>
+        <div class="field">
+          <label for="authPassword">Password</label>
+          <input
+            id="authPassword"
+            type="password"
+            autocomplete="current-password"
+          />
+        </div>
+        <div class="btn-row">
+          <button type="button" id="btnSignIn">Sign in</button>
+        </div>
+        <div id="authMsg" class="msg" role="status"></div>
+      </section>
+
+      <!-- Main create-task UI -->
+      <section id="mainPanel" class="panel hidden">
+        <h2>Email preview</h2>
+        <div class="preview-meta">
+          <div><strong>From:</strong> <span id="previewFrom">—</span></div>
+          <div><strong>To:</strong> <span id="previewTo">—</span></div>
+          <div><strong>Subject:</strong> <span id="previewSubject">—</span></div>
+          <div><strong>Date:</strong> <span id="previewDate">—</span></div>
+        </div>
+        <div class="field">
+          <label>Body (preview)</label>
+          <div id="bodyPreview">Loading…</div>
+        </div>
+      </section>
+
+      <section id="formPanel" class="panel hidden">
+        <h2>Task details</h2>
+        <div class="field">
+          <label for="fieldTitle">Title</label>
+          <input id="fieldTitle" type="text" />
+        </div>
+        <div class="field">
+          <label for="fieldDescription">Description</label>
+          <textarea id="fieldDescription" rows="4"></textarea>
+        </div>
+        <div class="field">
+          <label for="fieldClient">Client</label>
+          <input
+            id="fieldClient"
+            type="text"
+            placeholder="Optional — client list TBD"
+          />
+          <p class="hint">
+            Free-text for now. Wire to a clients list / client_id when the API
+            is ready.
+          </p>
+        </div>
+        <div class="field">
+          <label for="fieldRequester">Requester</label>
+          <input id="fieldRequester" type="text" />
+        </div>
+        <div class="field">
+          <label for="fieldStatus">Status</label>
+          <select id="fieldStatus">
+            <option value="open" selected>Open</option>
+            <option value="in_progress">In progress</option>
+            <option value="waiting">Waiting</option>
+            <option value="done">Done</option>
+          </select>
+        </div>
+        <div class="btn-row">
+          <button type="button" id="btnCreateTask">Create Task</button>
+          <button type="button" id="btnRefresh" class="secondary">
+            Reload email
+          </button>
+          <button type="button" id="btnSignOut" class="secondary danger-outline">
+            Sign out
+          </button>
+        </div>
+        <div id="taskMsg" class="msg" role="status"></div>
+        <p class="hint">
+          Posts to the create-task edge function with your Bearer JWT. Until
+          that endpoint is live, expect network/placeholder errors — useful for
+          verifying the request shape.
+        </p>
+      </section>
+
+      <section id="configWarn" class="panel hidden">
+        <h2>Configuration</h2>
+        <div class="msg info visible">
+          Config still contains PLACEHOLDER_* values. Edit
+          <code>src/config.js</code> (supabaseUrl, supabaseAnonKey, URLs)
+          before signing in against a real project.
+        </div>
+      </section>
+    </main>
+
+    <footer class="note">
+      Classic Outlook Mail Read add-in · Add to Tracker · Not COM/VSTO
+    </footer>
+
+    <script src="../config.js"></script>
+    <script src="taskpane.js"></script>
+  </body>
+</html>
