@@ -24,7 +24,7 @@
      * TODO: Supabase anon (public) key — safe for client use with RLS.
      * Never put the service_role key here.
      */
-    supabaseAnonKey: "PLACEHOLDER_SUPABASE_ANON_KEY",
+    supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpzYWJtd3d0Zmxzb25ram51ZnhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0MTEyMDIsImV4cCI6MjA4MTk4NzIwMn0.jSX4h45_FIzrNa7Bk1_lvBKdkCNbUGI3-L3VdGhAWck",
 
     /**
      * TODO: Edge function that creates a task from email context.
