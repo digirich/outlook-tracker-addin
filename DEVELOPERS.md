@@ -8,7 +8,7 @@ End users should follow **README.md** (install guide). This file is for people h
 - Office.js task pane + ribbon **Add to Tracker**
 - Tracker: https://tracker.seoandweb.co.uk  
 - Supabase project ref: `zsabmwwtflsonkjnufxc`
-- Planned API: `POST …/functions/v1/create-task` (Bearer user JWT)
+- Create-task API: `POST …/functions/v1/create-task` (Bearer user JWT)
 - Existing: `POST …/functions/v1/parse-email`
 
 ## Configure

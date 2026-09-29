@@ -1,8 +1,8 @@
 /**
  * Tracker Tool — configuration
  *
- * TODO: Replace every PLACEHOLDER_* value before production use.
- * Do not commit real secrets. Prefer injecting via build/env at deploy time.
+ * Uses the public Supabase anon key only (safe with RLS).
+ * Never put the service_role key here.
  */
 (function (global) {
   "use strict";
@@ -11,32 +11,33 @@
     /** Display name shown in the task pane */
     appName: "Tracker Tool",
 
-    /** Live tracker web app (reference only; add-in talks to Supabase) */
+    /** Live tracker web app */
     trackerUrl: "https://tracker.seoandweb.co.uk",
 
-    /**
-     * TODO: Supabase project URL
-     * Example: https://YOUR_PROJECT.supabase.co
-     */
+    /** Supabase project URL */
     supabaseUrl: "https://zsabmwwtflsonkjnufxc.supabase.co",
 
     /**
-     * TODO: Supabase anon (public) key — safe for client use with RLS.
+     * Supabase anon (public) key — safe for client use with RLS.
      * Never put the service_role key here.
      */
     supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpzYWJtd3d0Zmxzb25ram51ZnhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0MTEyMDIsImV4cCI6MjA4MTk4NzIwMn0.jSX4h45_FIzrNa7Bk1_lvBKdkCNbUGI3-L3VdGhAWck",
 
     /**
-     * TODO: Edge function that creates a task from email context.
-     * Planned: POST with Bearer user JWT
-     * Body: { title, description, email_from, email_to, email_date, client_id? }
+     * create-task edge function.
+     * POST with Bearer user JWT + apikey (anon).
+     * Required: title + client_id OR client_name
+     * Optional: description, requester_id|requester_name, status_id,
+     *           email_from, email_to, email_date, emailContent, emailBase64
      */
     createTaskUrl:
       "https://zsabmwwtflsonkjnufxc.supabase.co/functions/v1/create-task",
 
     /**
-     * Existing edge function for email parsing (optional helper).
-     * POST .../functions/v1/parse-email
+     * parse-email edge function (AI autofill).
+     * POST with Bearer user JWT + apikey (anon).
+     * Body: { emailContent|emailBase64, clients: string[], requesters: string[] }
+     * Returns: { title, description, client, requester, emailFrom, emailTo, emailDate }
      */
     parseEmailUrl:
       "https://zsabmwwtflsonkjnufxc.supabase.co/functions/v1/parse-email",
@@ -68,8 +69,18 @@
       );
     },
 
+    /** REST base for PostgREST (clients / requesters lists) */
+    restUrl: function (table, query) {
+      return (
+        this.supabaseUrl.replace(/\/$/, "") +
+        "/rest/v1/" +
+        table +
+        (query ? "?" + query : "")
+      );
+    },
+
     /**
-     * Resolve create-task URL, substituting supabaseUrl if still templated.
+     * Resolve the create-task URL, substituting supabaseUrl if templated.
      */
     resolvedCreateTaskUrl: function () {
       return String(this.createTaskUrl).replace(
@@ -85,10 +96,6 @@
       );
     },
   };
-
-  // Known project host (non-secret) — still require anon key + confirm URLs.
-  // Real values: https://zsabmwwtflsonkjnufxc.supabase.co
-  // Leave PLACEHOLDER_* until you deliberately set them in this file or a build step.
 
   global.TrackerConfig = Config;
 })(typeof window !== "undefined" ? window : this);

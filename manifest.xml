@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <!--
-  Tracker Tool — classic Outlook (Windows desktop) Office Add-in
-  Mail Read surface: ribbon "Add to Tracker" → task pane
+  Tracker Tool â€” classic Outlook (Windows desktop) Office Add-in
+  Mail Read surface: ribbon "Add to Tracker" â†’ task pane
 
   NOT a COM/VSTO add-in. NOT new-Outlook-only.
   Host the add-in files over HTTPS, then update all ~Remote~Url values below
@@ -15,7 +15,7 @@
   xsi:type="MailApp">
 
   <Id>a1b2c3d4-e5f6-7890-abcd-ef1234567890</Id>
-  <Version>1.0.0.0</Version>
+  <Version>1.0.0.1</Version>
   <ProviderName>SEO &amp; Web</ProviderName>
   <DefaultLocale>en-GB</DefaultLocale>
   <DisplayName DefaultValue="Tracker Tool" />

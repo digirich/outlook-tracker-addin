@@ -19,9 +19,8 @@
       <section id="authPanel" class="panel">
         <h2>Sign in</h2>
         <p class="hint">
-          Sign in with your Tracker (Supabase) account. The create-task API is
-          forthcoming — this form obtains a user JWT for future authenticated
-          calls.
+          Sign in with your Tracker Tool email and password — the same credentials you
+          use on tracker.seoandweb.co.uk.
         </p>
         <div class="field">
           <label for="authEmail">Email</label>
@@ -54,6 +53,7 @@
           <label>Body (preview)</label>
           <div id="bodyPreview">Loading…</div>
         </div>
+        <div id="aiMsg" class="msg" role="status"></div>
       </section>
 
       <section id="formPanel" class="panel hidden">
@@ -64,32 +64,40 @@
         </div>
         <div class="field">
           <label for="fieldDescription">Description</label>
-          <textarea id="fieldDescription" rows="4"></textarea>
+          <textarea id="fieldDescription" rows="3" placeholder="Short action (AI-filled when possible)"></textarea>
         </div>
         <div class="field">
-          <label for="fieldClient">Client</label>
+          <label for="fieldClient">Client <span style="color:#cf222e">*</span></label>
           <input
             id="fieldClient"
             type="text"
-            placeholder="Optional — client list TBD"
+            list="clientList"
+            placeholder="Required — type or pick a client"
+            required
+            autocomplete="off"
           />
+          <datalist id="clientList"></datalist>
           <p class="hint">
-            Free-text for now. Wire to a clients list / client_id when the API
-            is ready.
+            Must match an existing Tracker client (exact name). Required to create a task.
           </p>
         </div>
         <div class="field">
           <label for="fieldRequester">Requester</label>
-          <input id="fieldRequester" type="text" />
+          <input
+            id="fieldRequester"
+            type="text"
+            list="requesterList"
+            placeholder="Optional — type or pick a requester"
+            autocomplete="off"
+          />
+          <datalist id="requesterList"></datalist>
         </div>
         <div class="field">
           <label for="fieldStatus">Status</label>
           <select id="fieldStatus">
-            <option value="open" selected>Open</option>
-            <option value="in_progress">In progress</option>
-            <option value="waiting">Waiting</option>
-            <option value="done">Done</option>
+            <option value="" selected>To Do (default)</option>
           </select>
+          <p class="hint">Defaults to “To Do” in Tracker (same as the web app).</p>
         </div>
         <div class="btn-row">
           <button type="button" id="btnCreateTask">Create Task</button>
@@ -102,9 +110,7 @@
         </div>
         <div id="taskMsg" class="msg" role="status"></div>
         <p class="hint">
-          Posts to the create-task edge function with your Bearer JWT. Until
-          that endpoint is live, expect network/placeholder errors — useful for
-          verifying the request shape.
+          Creates a task in Tracker Tool using your signed-in account. Client is required.
         </p>
       </section>
 

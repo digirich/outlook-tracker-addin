@@ -81,7 +81,7 @@ Use classic Outlook desktop. In newer builds, try the search box at the top of O
 Restart Outlook fully. Confirm you opened a **received message** (the add-in is for reading mail, not for composing a new one). Ask IT that the web address inside `manifest.xml` is live over HTTPS.
 
 **The panel opens but Create Task fails**  
-Sign in again. If it still fails, the Tracker create-task connection may not be finished yet — contact whoever set up Tracker Tool / this add-in.
+Sign in again. If it still fails, contact whoever set up Tracker Tool / this add-in.
 
 **Outlook says the add-in can’t be loaded**  
 Usually the HTTPS site that hosts the add-in files is down, blocked by the network, or the address in `manifest.xml` is wrong. That is an IT fix, not something you change in Outlook settings.
