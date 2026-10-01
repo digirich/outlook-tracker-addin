@@ -5,8 +5,10 @@
  * (same AI flow as the web app), and POSTs to create-task with
  * client_id / client_name (required by the API).
  *
- * Auth: Supabase Auth REST password grant → store access_token in
- * OfficeRuntime.storage (fallback: localStorage).
+ * Auth: Supabase Auth REST password grant → store access_token +
+ * refresh_token in OfficeRuntime.storage / RoamingSettings / localStorage.
+ * Expired access tokens are refreshed via grant_type=refresh_token before
+ * parse-email / create-task. Refresh failure clears session and prompts re-sign-in.
  * Uses anon key only — never service_role.
  */
 (function () {
@@ -32,11 +34,67 @@
   var parseInFlight = false;
 
   // ---------------------------------------------------------------------------
-  // Storage helpers (OfficeRuntime.storage preferred in Office hosts)
+  // Storage helpers
+  // Prefer OfficeRuntime.storage, then RoamingSettings, then localStorage.
   // ---------------------------------------------------------------------------
+
+  function roamingSettingsAvailable() {
+    try {
+      return (
+        typeof Office !== "undefined" &&
+        Office.context &&
+        Office.context.roamingSettings &&
+        typeof Office.context.roamingSettings.set === "function"
+      );
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function roamingSet(key, value) {
+    if (!roamingSettingsAvailable()) return;
+    try {
+      Office.context.roamingSettings.set(key, value);
+      if (typeof Office.context.roamingSettings.saveAsync === "function") {
+        Office.context.roamingSettings.saveAsync(function () {});
+      }
+    } catch (e) {}
+  }
+
+  function roamingGet(key) {
+    if (!roamingSettingsAvailable()) return null;
+    try {
+      var v = Office.context.roamingSettings.get(key);
+      return v != null && v !== "" ? String(v) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function roamingRemove(key) {
+    if (!roamingSettingsAvailable()) return;
+    try {
+      Office.context.roamingSettings.remove(key);
+      if (typeof Office.context.roamingSettings.saveAsync === "function") {
+        Office.context.roamingSettings.saveAsync(function () {});
+      }
+    } catch (e) {}
+  }
+
+  function localStorageFallback(key) {
+    try {
+      return localStorage.getItem(key);
+    } catch (e) {
+      return null;
+    }
+  }
 
   function storageSet(key, value) {
     return new Promise(function (resolve) {
+      roamingSet(key, value);
+      try {
+        localStorage.setItem(key, value);
+      } catch (e0) {}
       try {
         if (
           typeof OfficeRuntime !== "undefined" &&
@@ -49,17 +107,11 @@
               resolve(true);
             })
             .catch(function () {
-              try {
-                localStorage.setItem(key, value);
-              } catch (e) {}
               resolve(true);
             });
           return;
         }
       } catch (e) {}
-      try {
-        localStorage.setItem(key, value);
-      } catch (e2) {}
       resolve(true);
     });
   }
@@ -77,22 +129,33 @@
             .then(function (v) {
               if (v != null && v !== "") {
                 resolve(v);
-              } else {
-                resolve(localStorageFallback(key));
+                return;
               }
+              var roam = roamingGet(key);
+              if (roam) {
+                resolve(roam);
+                return;
+              }
+              resolve(localStorageFallback(key));
             })
             .catch(function () {
-              resolve(localStorageFallback(key));
+              var roam = roamingGet(key);
+              resolve(roam || localStorageFallback(key));
             });
           return;
         }
       } catch (e) {}
-      resolve(localStorageFallback(key));
+      var roam2 = roamingGet(key);
+      resolve(roam2 || localStorageFallback(key));
     });
   }
 
   function storageRemove(key) {
     return new Promise(function (resolve) {
+      roamingRemove(key);
+      try {
+        localStorage.removeItem(key);
+      } catch (e0) {}
       try {
         if (
           typeof OfficeRuntime !== "undefined" &&
@@ -102,33 +165,16 @@
           OfficeRuntime.storage
             .removeItem(key)
             .then(function () {
-              try {
-                localStorage.removeItem(key);
-              } catch (e) {}
               resolve(true);
             })
             .catch(function () {
-              try {
-                localStorage.removeItem(key);
-              } catch (e2) {}
               resolve(true);
             });
           return;
         }
       } catch (e) {}
-      try {
-        localStorage.removeItem(key);
-      } catch (e3) {}
       resolve(true);
     });
-  }
-
-  function localStorageFallback(key) {
-    try {
-      return localStorage.getItem(key);
-    } catch (e) {
-      return null;
-    }
   }
 
   // ---------------------------------------------------------------------------
@@ -231,8 +277,54 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Auth (Supabase password grant)
+  // Auth (Supabase password grant + refresh_token renewal)
   // ---------------------------------------------------------------------------
+
+  var SESSION_EXPIRED_MSG =
+    "Your session expired. Please sign in again.";
+
+  function mergeObjects(a, b) {
+    var out = {};
+    var k;
+    if (a) {
+      for (k in a) {
+        if (Object.prototype.hasOwnProperty.call(a, k)) out[k] = a[k];
+      }
+    }
+    if (b) {
+      for (k in b) {
+        if (Object.prototype.hasOwnProperty.call(b, k)) out[k] = b[k];
+      }
+    }
+    return out;
+  }
+
+  function persistSession(data, email) {
+    var chain = storageSet(Config.storageTokenKey, data.access_token);
+    if (data.refresh_token) {
+      chain = chain.then(function () {
+        return storageSet(Config.storageRefreshTokenKey, data.refresh_token);
+      });
+    }
+    if (email) {
+      chain = chain.then(function () {
+        return storageSet(Config.storageUserKey, email);
+      });
+    }
+    return chain.then(function () {
+      return data;
+    });
+  }
+
+  function clearStoredSession() {
+    return storageRemove(Config.storageTokenKey)
+      .then(function () {
+        return storageRemove(Config.storageRefreshTokenKey);
+      })
+      .then(function () {
+        return storageRemove(Config.storageUserKey);
+      });
+  }
 
   function signIn(email, password) {
     if (Config.isPlaceholder()) {
@@ -262,20 +354,135 @@
         if (!data || !data.access_token) {
           throw new Error("No access_token in auth response");
         }
-        return storageSet(Config.storageTokenKey, data.access_token).then(
-          function () {
-            return storageSet(Config.storageUserKey, email).then(function () {
-              return data;
-            });
-          }
-        );
+        return persistSession(data, email);
       });
     });
   }
 
   function signOut() {
-    return storageRemove(Config.storageTokenKey).then(function () {
-      return storageRemove(Config.storageUserKey);
+    return clearStoredSession();
+  }
+
+  function forceReSignIn(message) {
+    return clearStoredSession().then(function () {
+      setSignedOutUi();
+      var msg = message || SESSION_EXPIRED_MSG;
+      showMsg($("authMsg"), msg, "error");
+      clearMsg($("aiMsg"));
+      clearMsg($("taskMsg"));
+      return null;
+    });
+  }
+
+  /**
+   * Decode JWT payload without verifying signature (client-side expiry check only).
+   */
+  function decodeJwtPayload(token) {
+    if (!token || typeof token !== "string") return null;
+    var parts = token.split(".");
+    if (parts.length < 2) return null;
+    try {
+      var b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      while (b64.length % 4) b64 += "=";
+      var json = null;
+      if (typeof atob === "function") {
+        json = atob(b64);
+      } else if (typeof Buffer !== "undefined") {
+        json = Buffer.from(b64, "base64").toString("utf8");
+      }
+      return json ? JSON.parse(json) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function isAccessTokenExpired(token, skewSeconds) {
+    var skew = typeof skewSeconds === "number" ? skewSeconds : 60;
+    var payload = decodeJwtPayload(token);
+    if (!payload || typeof payload.exp !== "number") {
+      // Unknown shape — treat as needing refresh if we have a refresh_token
+      return true;
+    }
+    var now = Math.floor(Date.now() / 1000);
+    return payload.exp <= now + skew;
+  }
+
+  function isAuthFailureMessage(msg) {
+    if (!msg) return false;
+    var s = String(msg).toLowerCase();
+    return (
+      s.indexOf("jwt expired") !== -1 ||
+      (s.indexOf("jwt") !== -1 && s.indexOf("expir") !== -1) ||
+      s.indexOf("invalid jwt") !== -1 ||
+      s.indexOf("not authenticated") !== -1 ||
+      s.indexOf("invalid claim") !== -1 ||
+      s.indexOf("session expired") !== -1 ||
+      s.indexOf("token is expired") !== -1
+    );
+  }
+
+  /**
+   * POST /auth/v1/token?grant_type=refresh_token
+   * Persists rotated access_token + refresh_token on success.
+   */
+  function refreshSession() {
+    return storageGet(Config.storageRefreshTokenKey).then(function (refreshToken) {
+      if (!refreshToken) {
+        throw new Error("No refresh_token — please sign in again.");
+      }
+      return fetch(Config.authRefreshUrl(), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: Config.supabaseAnonKey,
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      }).then(function (res) {
+        return res.json().then(function (data) {
+          if (!res.ok) {
+            var msg =
+              (data && (data.error_description || data.msg || data.error)) ||
+              "Token refresh failed (" + res.status + ")";
+            var err = new Error(
+              typeof msg === "string" ? msg : JSON.stringify(msg)
+            );
+            err.status = res.status;
+            err.refreshFailed = true;
+            throw err;
+          }
+          if (!data || !data.access_token) {
+            var err2 = new Error("No access_token in refresh response");
+            err2.refreshFailed = true;
+            throw err2;
+          }
+          return storageGet(Config.storageUserKey).then(function (email) {
+            return persistSession(data, email || null).then(function () {
+              return data.access_token;
+            });
+          });
+        });
+      });
+    });
+  }
+
+  /**
+   * Return a usable access_token, refreshing via refresh_token when expired.
+   * On refresh failure: clear session and show re-sign-in UI (rejects with SESSION_EXPIRED_MSG).
+   */
+  function ensureValidAccessToken() {
+    return storageGet(Config.storageTokenKey).then(function (token) {
+      if (token && !isAccessTokenExpired(token)) {
+        return token;
+      }
+      // Missing or expired — try refresh_token
+      return refreshSession().catch(function (err) {
+        return forceReSignIn(SESSION_EXPIRED_MSG).then(function () {
+          var e = new Error(SESSION_EXPIRED_MSG);
+          e.authRequired = true;
+          e.cause = err;
+          throw e;
+        });
+      });
     });
   }
 
@@ -287,11 +494,66 @@
     };
   }
 
+  /**
+   * Run an authenticated fetch. On 401 / JWT-expired body, refresh once and retry.
+   * If refresh fails, clear session and reject with a clear re-sign-in message.
+   */
+  function fetchWithAuth(url, options) {
+    options = options || {};
+    return ensureValidAccessToken().then(function (token) {
+      var headers = mergeObjects(options.headers || {}, authHeaders(token));
+      return fetch(url, mergeObjects(options, { headers: headers })).then(
+        function (res) {
+          if (res.status !== 401) return res;
+          // Try one refresh + retry
+          return res
+            .text()
+            .then(function (text) {
+              var data = null;
+              try {
+                data = text ? JSON.parse(text) : null;
+              } catch (e) {
+                data = null;
+              }
+              var errMsg =
+                (data && (data.error || data.message || data.msg)) ||
+                text ||
+                "Unauthorized";
+              return String(errMsg);
+            })
+            .then(function (errMsg) {
+              if (!isAuthFailureMessage(errMsg) && errMsg.indexOf("401") === -1) {
+                // Still retry refresh on any 401 from our APIs
+              }
+              return refreshSession()
+                .then(function (newToken) {
+                  var headers2 = mergeObjects(
+                    options.headers || {},
+                    authHeaders(newToken)
+                  );
+                  return fetch(
+                    url,
+                    mergeObjects(options, { headers: headers2 })
+                  );
+                })
+                .catch(function () {
+                  return forceReSignIn(SESSION_EXPIRED_MSG).then(function () {
+                    var e = new Error(SESSION_EXPIRED_MSG);
+                    e.authRequired = true;
+                    throw e;
+                  });
+                });
+            });
+        }
+      );
+    });
+  }
+
   // ---------------------------------------------------------------------------
   // Load clients + requesters (user JWT + RLS)
   // ---------------------------------------------------------------------------
 
-  function fetchClientsAndRequesters(token) {
+  function fetchClientsAndRequesters() {
     var clientsUrl = Config.restUrl(
       "clients",
       "select=id,name&order=name.asc"
@@ -300,32 +562,42 @@
       "requesters",
       "select=id,name&order=name.asc"
     );
-    var headers = authHeaders(token);
-    // Prefer-Return not needed; Prefer: count optional
-    headers.Accept = "application/json";
+
+    function parseList(res, label) {
+      return res.text().then(function (text) {
+        var data = null;
+        try {
+          data = text ? JSON.parse(text) : null;
+        } catch (e) {
+          data = null;
+        }
+        if (!res.ok) {
+          var msg =
+            (data && (data.message || data.error || data.msg)) ||
+            text ||
+            "Failed to load " + label + " (" + res.status + ")";
+          var err = new Error(
+            typeof msg === "string" ? msg : JSON.stringify(msg)
+          );
+          err.status = res.status;
+          throw err;
+        }
+        return Array.isArray(data) ? data : [];
+      });
+    }
 
     return Promise.all([
-      fetch(clientsUrl, { headers: headers }).then(function (res) {
-        return res.json().then(function (data) {
-          if (!res.ok) {
-            throw new Error(
-              (data && (data.message || data.error)) ||
-                "Failed to load clients (" + res.status + ")"
-            );
-          }
-          return Array.isArray(data) ? data : [];
-        });
+      fetchWithAuth(clientsUrl, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      }).then(function (res) {
+        return parseList(res, "clients");
       }),
-      fetch(requestersUrl, { headers: headers }).then(function (res) {
-        return res.json().then(function (data) {
-          if (!res.ok) {
-            throw new Error(
-              (data && (data.message || data.error)) ||
-                "Failed to load requesters (" + res.status + ")"
-            );
-          }
-          return Array.isArray(data) ? data : [];
-        });
+      fetchWithAuth(requestersUrl, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      }).then(function (res) {
+        return parseList(res, "requesters");
       }),
     ]).then(function (pair) {
       clientsCache = pair[0];
@@ -458,14 +730,12 @@
     clearMsg($("aiMsg"));
     showMsg($("aiMsg"), "Parsing email with AI…", "info");
 
-    return storageGet(Config.storageTokenKey)
-      .then(function (token) {
-        if (!token) throw new Error("Not signed in");
-
+    return ensureValidAccessToken()
+      .then(function () {
         var ensureLists =
           clientsCache.length || requestersCache.length
             ? Promise.resolve()
-            : fetchClientsAndRequesters(token);
+            : fetchClientsAndRequesters();
 
         return ensureLists.then(function () {
           var payload = {
@@ -478,9 +748,8 @@
             }),
           };
 
-          return fetch(Config.resolvedParseEmailUrl(), {
+          return fetchWithAuth(Config.resolvedParseEmailUrl(), {
             method: "POST",
-            headers: authHeaders(token),
             body: JSON.stringify(payload),
           }).then(function (res) {
             return res.text().then(function (text) {
@@ -495,9 +764,11 @@
                   (data && (data.error || data.message)) ||
                   text ||
                   "parse-email failed (" + res.status + ")";
-                throw new Error(
+                var err = new Error(
                   typeof errMsg === "string" ? errMsg : JSON.stringify(errMsg)
                 );
+                err.status = res.status;
+                throw err;
               }
               return data;
             });
@@ -569,11 +840,29 @@
         return data;
       })
       .catch(function (err) {
+        if (err && err.authRequired) {
+          // forceReSignIn already updated auth UI
+          showMsg(
+            $("aiMsg"),
+            SESSION_EXPIRED_MSG + " Sign in to enable AI parse.",
+            "error"
+          );
+          return null;
+        }
+        var raw = err && err.message ? err.message : String(err);
+        if (isAuthFailureMessage(raw)) {
+          return forceReSignIn(SESSION_EXPIRED_MSG).then(function () {
+            showMsg(
+              $("aiMsg"),
+              SESSION_EXPIRED_MSG + " Sign in to enable AI parse.",
+              "error"
+            );
+            return null;
+          });
+        }
         showMsg(
           $("aiMsg"),
-          "AI parse skipped: " +
-            (err && err.message ? err.message : String(err)) +
-            ". Fill fields manually.",
+          "AI parse skipped: " + raw + ". Fill fields manually.",
           "error"
         );
         return null;
@@ -586,21 +875,33 @@
 
   function afterMailLoaded() {
     applyEmailToUi(emailContext);
-    return storageGet(Config.storageTokenKey).then(function (token) {
-      if (!token) return null;
-      return fetchClientsAndRequesters(token)
-        .catch(function (err) {
-          showMsg(
-            $("aiMsg"),
-            "Could not load clients: " +
-              (err && err.message ? err.message : String(err)),
-            "error"
-          );
-        })
-        .then(function () {
-          return parseEmailAutofill();
-        });
-    });
+    return ensureValidAccessToken()
+      .then(function () {
+        return fetchClientsAndRequesters()
+          .catch(function (err) {
+            if (err && err.authRequired) return null;
+            var raw = err && err.message ? err.message : String(err);
+            if (isAuthFailureMessage(raw)) {
+              return forceReSignIn(SESSION_EXPIRED_MSG);
+            }
+            showMsg(
+              $("aiMsg"),
+              "Could not load clients: " + raw,
+              "error"
+            );
+          })
+          .then(function () {
+            // Only parse when still signed in
+            return storageGet(Config.storageTokenKey).then(function (token) {
+              if (!token) return null;
+              return parseEmailAutofill();
+            });
+          });
+      })
+      .catch(function (err) {
+        if (err && err.authRequired) return null;
+        return null;
+      });
   }
 
   // ---------------------------------------------------------------------------
@@ -624,11 +925,7 @@
   }
 
   function createTask() {
-    return storageGet(Config.storageTokenKey).then(function (token) {
-      if (!token) {
-        throw new Error("Not signed in");
-      }
-
+    return ensureValidAccessToken().then(function () {
       var title = ($("fieldTitle").value || "").trim();
       if (!title) {
         throw new Error("Title is required");
@@ -669,9 +966,8 @@
 
       var url = Config.resolvedCreateTaskUrl();
 
-      return fetch(url, {
+      return fetchWithAuth(url, {
         method: "POST",
-        headers: authHeaders(token),
         body: JSON.stringify(payload),
       }).then(function (res) {
         return res.text().then(function (text) {
@@ -705,11 +1001,17 @@
               errMsg +=
                 " — check that Tracker Tool is available and try again.";
             }
+            if (typeof errMsg === "string" && isAuthFailureMessage(errMsg)) {
+              errMsg = SESSION_EXPIRED_MSG;
+            }
             var err = new Error(
               typeof errMsg === "string" ? errMsg : JSON.stringify(errMsg)
             );
             err.status = res.status;
             err.data = data;
+            if (isAuthFailureMessage(String(errMsg))) {
+              err.authRequired = true;
+            }
             throw err;
           }
           return data;
@@ -800,11 +1102,17 @@
           showMsg($("taskMsg"), ok, "success");
         })
         .catch(function (err) {
-          showMsg(
-            $("taskMsg"),
-            err && err.message ? err.message : String(err),
-            "error"
-          );
+          if (err && err.authRequired) {
+            showMsg($("taskMsg"), SESSION_EXPIRED_MSG, "error");
+            return;
+          }
+          var raw = err && err.message ? err.message : String(err);
+          if (isAuthFailureMessage(raw)) {
+            forceReSignIn(SESSION_EXPIRED_MSG);
+            showMsg($("taskMsg"), SESSION_EXPIRED_MSG, "error");
+            return;
+          }
+          showMsg($("taskMsg"), raw, "error");
         })
         .then(function () {
           $("btnCreateTask").disabled = false;
@@ -833,23 +1141,29 @@
     bindEvents();
 
     storageGet(Config.storageTokenKey).then(function (token) {
-      return storageGet(Config.storageUserKey).then(function (email) {
-        if (token) {
-          setSignedInUi(email);
-          loadMailItem()
+      return storageGet(Config.storageRefreshTokenKey).then(function (refresh) {
+        return storageGet(Config.storageUserKey).then(function (email) {
+          if (!token && !refresh) {
+            setSignedOutUi();
+            return;
+          }
+          // Refresh access token if needed, then continue
+          ensureValidAccessToken()
             .then(function () {
-              return afterMailLoaded();
+              setSignedInUi(email);
+              return loadMailItem().then(function () {
+                return afterMailLoaded();
+              });
             })
             .catch(function (err) {
+              if (err && err.authRequired) return;
               showMsg(
                 $("taskMsg"),
                 err && err.message ? err.message : String(err),
                 "error"
               );
             });
-        } else {
-          setSignedOutUi();
-        }
+        });
       });
     });
   }

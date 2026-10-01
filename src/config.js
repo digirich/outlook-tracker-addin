@@ -42,10 +42,13 @@
     parseEmailUrl:
       "https://zsabmwwtflsonkjnufxc.supabase.co/functions/v1/parse-email",
 
-    /** localStorage / OfficeRuntime.storage key for the access token */
+    /** OfficeRuntime.storage / RoamingSettings / localStorage key for access token */
     storageTokenKey: "tracker_access_token",
 
-    /** localStorage key for cached user email (display only) */
+    /** Same stores: refresh_token for silent JWT renewal (anon key only) */
+    storageRefreshTokenKey: "tracker_refresh_token",
+
+    /** Cached user email (display only) */
     storageUserKey: "tracker_user_email",
 
     /**
@@ -66,6 +69,18 @@
       return (
         this.supabaseUrl.replace(/\/$/, "") +
         "/auth/v1/token?grant_type=password"
+      );
+    },
+
+    /**
+     * Supabase Auth refresh_token grant.
+     * POST /auth/v1/token?grant_type=refresh_token
+     * Body: { refresh_token }
+     */
+    authRefreshUrl: function () {
+      return (
+        this.supabaseUrl.replace(/\/$/, "") +
+        "/auth/v1/token?grant_type=refresh_token"
       );
     },
 
